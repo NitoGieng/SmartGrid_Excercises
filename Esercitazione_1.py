@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 # =========================================================================
-# PARTE 1: IMPORTAZIONE DATI, PROFILI E CALCOLI TOTALI
+# PARTE 1
 # =========================================================================
 
 # 1. Caricamento CSV (saltando le prime 10 righe di intestazione PVGIS)
@@ -53,7 +53,7 @@ print(f"Ripartizione in 5 parti uguali: {ripartizione_naif:.2f} € per utente\n
 
 
 # =========================================================================
-# PARTE 2: RIPARTIZIONE AVANZATA (DA STATUTO)
+# PARTE 2
 # =========================================================================
 
 capitale_investito = [10000, 7000, 3000, 0, 0]
