@@ -68,11 +68,21 @@ def vincola_potenza(p_richiesta, energia_disponibile, limite_potenza=P_BATT_MAX)
 def simula_autoconsumo(df, colonna_carico):
     """PARTE 1: Massimizzazione dell'autoconsumo (logica base)."""
     soc_kwh = SOC_INIT_KWH
-    p_batt_array = [] # Positivo: Scarica (aiuta il carico), Negativo: Carica
+    p_batt_array = [] 
     
     for _, row in df.iterrows():
+        ora = row['Ora']
         p_net = row['Generazione_kW'] - row[colonna_carico]
         
+        # Gestione Vincolo: Integrale nullo nelle 24h
+        # Lo svuotamento avviene ora DENTRO il ciclo, rispettando P_BATT_MAX
+        if ora >= 21 and soc_kwh > SOC_INIT_KWH:
+            energia_da_smaltire = soc_kwh - SOC_INIT_KWH
+            p_scarica_forzata = vincola_potenza(P_BATT_MAX, energia_da_smaltire)
+            soc_kwh -= p_scarica_forzata
+            p_batt_array.append(p_scarica_forzata)
+            continue # Salta la logica standard per questa ora
+            
         if p_net > 0: # Eccesso di produzione -> Carica
             spazio_libero = SOC_MAX_KWH - soc_kwh
             p_carica = vincola_potenza(p_net, spazio_libero)
@@ -83,15 +93,6 @@ def simula_autoconsumo(df, colonna_carico):
             p_scarica = vincola_potenza(abs(p_net), energia_estraibile)
             soc_kwh -= p_scarica
             p_batt_array.append(p_scarica)
-            
-    # Gestione Vincolo: Integrale nullo nelle 24h (SOC finale = SOC iniziale)
-    # Se a fine giornata (ore 21-23) c'è energia in eccesso, forziamo la scarica
-    for i in range(21, 24):
-        if soc_kwh > SOC_INIT_KWH:
-            energia_da_smaltire = soc_kwh - SOC_INIT_KWH
-            p_scarica_forzata = vincola_potenza(energia_da_smaltire, energia_da_smaltire)
-            p_batt_array[i] += p_scarica_forzata
-            soc_kwh -= p_scarica_forzata
 
     return p_batt_array
 
@@ -105,10 +106,15 @@ def simula_ottimizzazione_costi(df, colonna_carico, colonna_prezzo):
         prezzo_attuale = row[colonna_prezzo]
         p_net = row['Generazione_kW'] - row[colonna_carico]
         
-        # Logica euristica per feriale: 
-        # Carica da rete di notte (F3) se domani non c'è abbastanza FV
-        # Scarica in F1/F2 per coprire il carico.
-        
+        # Gestione Vincolo: Integrale nullo integrato nel ciclo
+        if ora >= 21 and soc_kwh > SOC_INIT_KWH:
+            energia_da_smaltire = soc_kwh - SOC_INIT_KWH
+            p_scarica = vincola_potenza(P_BATT_MAX, energia_da_smaltire)
+            soc_kwh -= p_scarica
+            p_batt_array.append(p_scarica)
+            continue
+            
+        # Logica euristica per feriale
         if prezzo_attuale == TARIFFA_F3 and ora < 7:
             # Pre-carica notturna economica
             spazio_libero = SOC_MAX_KWH - soc_kwh
@@ -132,14 +138,6 @@ def simula_ottimizzazione_costi(df, colonna_carico, colonna_prezzo):
             
         else:
             p_batt_array.append(0)
-            
-    # Forzatura integrale nullo a fine giornata (ore 21-23)
-    for i in range(21, 24):
-        if soc_kwh > SOC_INIT_KWH:
-            energia_da_smaltire = soc_kwh - SOC_INIT_KWH
-            p_scarica = vincola_potenza(P_BATT_MAX, energia_da_smaltire)
-            p_batt_array[i] += p_scarica
-            soc_kwh -= p_scarica
 
     return p_batt_array
 
@@ -153,10 +151,16 @@ def simula_demand_response(df, colonna_carico, colonna_prezzo):
         prezzo_attuale = row[colonna_prezzo]
         p_net = row['Generazione_kW'] - row[colonna_carico]
         
-        # EVENTO DR (Ore 10 e 11, che coprono il periodo 10:00-12:00)
+        # Gestione Vincolo: Integrale nullo integrato nel ciclo
+        if ora >= 21 and soc_kwh > SOC_INIT_KWH:
+            energia_da_smaltire = soc_kwh - SOC_INIT_KWH
+            p_scarica = vincola_potenza(P_BATT_MAX, energia_da_smaltire)
+            soc_kwh -= p_scarica
+            p_batt_array.append(p_scarica)
+            continue
+            
+        # EVENTO DR (Ore 10 e 11)
         if ora in [10, 11]:
-            # Priorità assoluta: scaricare al massimo consentito dall'inverter per 
-            # contribuire alla riduzione del carico, dato che 0.30 €/kWh > 0.28 €/kWh
             energia_estraibile = soc_kwh - SOC_MIN_KWH
             p_scarica = vincola_potenza(P_BATT_MAX, energia_estraibile)
             soc_kwh -= p_scarica
@@ -181,14 +185,6 @@ def simula_demand_response(df, colonna_carico, colonna_prezzo):
             p_batt_array.append(p_scarica)
         else:
             p_batt_array.append(0)
-
-    # Forzatura integrale nullo a fine giornata (ore 21-23)
-    for i in range(21, 24):
-        if soc_kwh > SOC_INIT_KWH:
-            energia_da_smaltire = soc_kwh - SOC_INIT_KWH
-            p_scarica = vincola_potenza(P_BATT_MAX, energia_da_smaltire)
-            p_batt_array[i] += p_scarica
-            soc_kwh -= p_scarica
 
     return p_batt_array
 
