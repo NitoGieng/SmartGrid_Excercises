@@ -14,5 +14,59 @@ Scalabilità tramite Calcolo Vettoriale: Per la ripartizione economica descritta
 Gestione degli Output: Tutti i flussi di cassa elaborati sono stati incapsulati e formattati all'interno di un DataFrame riassuntivo. Questo permette di isolare chiaramente la differenza di rendimento tra chi agisce da prosumer finanziario (Utenti 1, 2 e 3) e chi partecipa unicamente fornendo i propri profili di consumo (Utenti 4 e 5), validando i requisiti normativi dello statuto.
 
 
-Esercizio 2
-Parte 1: Massimizzazione dell'autoconsumoQuali sono le variabili del problema?In un problema di ottimizzazione per la gestione di una micro-rete con accumulo (BESS), le variabili si dividono in quattro categorie principali:Variabili di stato: Lo Stato di Carica della batteria al tempo $t$, indicato come $SOC(t)$. Rappresenta la memoria dinamica del sistema.Variabili di controllo (o decisionali): La potenza scambiata con la batteria. Tipicamente viene sdoppiata in potenza di carica $P_{ch}(t)$ e potenza di scarica $P_{dis}(t)$ per poter imporre rigidamente i vincoli di positività.Variabili di disturbo (esogene): Le grandezze su cui non si ha controllo diretto ma che guidano il sistema. Queste includono la potenza generata dalle fonti rinnovabili $P_{res}(t)$ (FV + eolico) e la potenza richiesta dal carico $P_{load}(t)$.Variabili dipendenti (o di slack): La potenza prelevata dalla rete $P_{grid, in}(t)$ e quella immessa in rete $P_{grid, out}(t)$. Sono fondamentali per chiudere il bilancio nodale di potenza in ogni singolo istante $t$.Come rappresentare la funzione obiettivo per la massimizzazione dell'autoconsumo?La massimizzazione dell'autoconsumo fisico implica limitare al minimo indispensabile l'interazione con la rete elettrica pubblica: l'energia prodotta localmente deve essere consumata o immagazzinata in loco.Matematicamente, la funzione obiettivo da minimizzare è l'energia totale scambiata con la rete (somma dei prelievi e delle immissioni):$$\min \sum_{t=1}^{24} \left( P_{grid, in}(t) + P_{grid, out}(t) \right) \cdot \Delta t$$Questa funzione è strettamente soggetta al vincolo di bilancio di potenza (Legge di Kirchhoff al nodo principale):$$P_{load}(t) + P_{ch}(t) + P_{grid, out}(t) = P_{res}(t) + P_{dis}(t) + P_{grid, in}(t)$$E ai vincoli tecnici definiti dalla traccia:Limiti di capacità: $0.1 \le SOC(t) \le 0.9$Limiti di inverter: $P_{ch}(t) \le 0.3 \text{ kW}$ e $P_{dis}(t) \le 0.3 \text{ kW}$Vincolo giornaliero: $SOC_{24} = SOC_{0}$Parte 3: Evento Demand ResponseCome cambia la strategia (matematicamente e logicamente) rispetto alla Parte 2?1. Cambiamento LogicoNella Parte 2, la batteria veniva scaricata esclusivamente in base alle necessità del carico locale incrociate con il costo energetico del momento (tariffe F1/F2).Con l'introduzione dell'evento di Demand Response (DR), subentra un segnale di prezzo esterno molto conveniente: il distributore paga 0,30 €/kWh per una riduzione del carico. Poiché questa remunerazione è strettamente maggiore del costo di acquisto dell'energia nella fascia più costosa (0,28 €/kWh in F1), dal punto di vista economico diventa prioritario riservare energia nell'accumulo per scaricarla alla massima potenza nella finestra oraria richiesta (10:00 - 12:00).Il sistema di gestione energetica abbandona quindi l'inseguimento del carico in quelle due ore e forza l'inverter a erogare il 100% della potenza disponibile ($P_{dis} = 0.3 \text{ kW}$) per massimizzare l'incasso.2. Cambiamento MatematicoLa funzione obiettivo della Parte 2 (minimizzazione del costo della bolletta) era:$$\min \sum_{t=1}^{24} \left( c_{en}(t) \cdot P_{grid,in}(t) \right) \cdot \Delta t$$Con il Demand Response, l'ottimizzazione diventa una massimizzazione del profitto (o minimizzazione del costo netto). Si introduce un vettore di ricavo $R_{DR}(t)$ che vale $0.30 \text{ €/kWh}$ per $t \in [10, 11]$ e $0$ in tutti gli altri istanti. La nuova funzione obiettivo diviene:$$\min \sum_{t=1}^{24} \left( c_{en}(t) \cdot P_{grid,in}(t) - R_{DR}(t) \cdot P_{dis}(t) \right) \cdot \Delta t$$In questo nuovo scenario, il gradiente della funzione di costo negli istanti in cui il DR è attivo viene dominato dal termine negativo del ricavo. Questo forza matematicamente l'algoritmo di controllo a saturare il vincolo superiore della variabile di scarica nella batteria in quelle specifiche ore.
+
+
+
+ESERCIZIO 2
+
+PARTE 1: MASSIMIZZAZIONE DELL'AUTOCONSUMO
+
+Quali sono le variabili del problema?
+In un problema di ottimizzazione per la gestione di una micro-rete con accumulo (BESS), le variabili si dividono in quattro categorie principali:
+
+- Variabili di stato: Lo Stato di Carica della batteria al tempo t, indicato come SOC(t). Rappresenta la memoria dinamica del sistema.
+- Variabili di controllo (o decisionali): La potenza scambiata con la batteria. Tipicamente viene sdoppiata in potenza di carica P_ch(t) e potenza di scarica P_dis(t) per poter imporre rigidamente i vincoli di positivita'.
+- Variabili di disturbo (esogene): Le grandezze su cui non si ha controllo diretto ma che guidano il sistema. Queste includono la potenza generata dalle fonti rinnovabili P_res(t) (FV + eolico) e la potenza richiesta dal carico P_load(t).
+- Variabili dipendenti (o di slack): La potenza prelevata dalla rete P_grid,in(t) e quella immessa in rete P_grid,out(t). Sono fondamentali per chiudere il bilancio nodale di potenza in ogni singolo istante t.
+
+
+Come rappresentare la funzione obiettivo per la massimizzazione dell'autoconsumo?
+La massimizzazione dell'autoconsumo fisico implica limitare al minimo indispensabile l'interazione con la rete elettrica pubblica: l'energia prodotta localmente deve essere consumata o immagazzinata in loco.
+
+Matematicamente, la funzione obiettivo da minimizzare e' l'energia totale scambiata con la rete (somma dei prelievi e delle immissioni):
+
+Minimizzare: Somma per t da 1 a 24 di [ (P_grid,in(t) + P_grid,out(t)) * Delta_t ]
+
+Questa funzione e' strettamente soggetta al vincolo di bilancio di potenza (Legge di Kirchhoff al nodo principale):
+
+P_load(t) + P_ch(t) + P_grid,out(t) = P_res(t) + P_dis(t) + P_grid,in(t)
+
+E ai seguenti vincoli tecnici:
+- Limiti di capacita': 0.1 <= SOC(t) <= 0.9
+- Limiti dell'inverter: P_ch(t) <= 0.3 kW e P_dis(t) <= 0.3 kW
+- Vincolo giornaliero: SOC(24) = SOC(0)
+
+--------------------------------------------------
+
+PARTE 3: EVENTO DEMAND RESPONSE
+
+Come cambia la strategia rispetto alla Parte 2?
+
+1. Cambiamento Logico
+Nella Parte 2, la batteria veniva scaricata esclusivamente in base alle necessita' del carico locale incrociate con il costo energetico del momento (tariffe F1/F2).
+
+Con l'introduzione dell'evento di Demand Response (DR), subentra un segnale di prezzo esterno molto conveniente: il distributore paga 0,30 euro/kWh per una riduzione del carico. Poiche' questa remunerazione e' strettamente maggiore del costo di acquisto dell'energia nella fascia piu' costosa (0,28 euro/kWh in F1), dal punto di vista economico diventa prioritario riservare energia nell'accumulo per scaricarla alla massima potenza nella finestra oraria richiesta (10:00 - 12:00).
+
+Il sistema di gestione energetica abbandona quindi l'inseguimento del carico in quelle due ore e forza l'inverter a erogare il 100% della potenza disponibile (P_dis = 0.3 kW) per massimizzare l'incasso.
+
+
+2. Cambiamento Matematico
+La funzione obiettivo della Parte 2 (minimizzazione del costo della bolletta) era:
+
+Minimizzare: Somma per t da 1 a 24 di [ c_en(t) * P_grid,in(t) * Delta_t ]
+
+Con il Demand Response, l'ottimizzazione diventa una massimizzazione del profitto (o minimizzazione del costo netto). Si introduce un vettore di ricavo R_DR(t) che vale 0,30 euro/kWh per t compreso tra le 10 e le 11, e vale 0 in tutti gli altri istanti. La nuova funzione obiettivo diviene:
+
+Minimizzare: Somma per t da 1 a 24 di [ (c_en(t) * P_grid,in(t) - R_DR(t) * P_dis(t)) * Delta_t ]
+
+In questo nuovo scenario, il gradiente della funzione di costo negli istanti in cui il DR e' attivo viene dominato dal termine negativo del ricavo. Questo forza matematicamente l'algoritmo di controllo a saturare il vincolo superiore della variabile di scarica nella batteria in quelle specifiche ore.
